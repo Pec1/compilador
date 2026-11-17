@@ -1,10 +1,10 @@
 @echo off
-rem Uso: rodar.bat arquivo.java [--json] [--ascii] [--sem-fonte]
+rem Uso: rodar.bat arquivo.java
 rem Procura o Python pelo launcher "py" e, se nao houver, pelo comando "python".
 chcp 65001 >nul
 cd /d "%~dp0"
 if "%~1"=="" (
-    echo Uso: rodar.bat arquivo.java [--json] [--ascii] [--sem-fonte]
+    echo Uso: rodar.bat arquivo.java
     exit /b 1
 )
 py -3 --version >nul 2>&1

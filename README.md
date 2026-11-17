@@ -1,15 +1,9 @@
-# compilador_av3
+# Compilador AV3: analisador léxico, sintático e semântico de Java em Python
 
-Analisador **léxico, sintático e semântico de Java** escrito em Python, feito para a AV3 de Compiladores (UNIJORGE).
-Lê qualquer arquivo `.java` (com `package`, `import`, classes, métodos, `if`/`for`/`while`, generics, lambdas...),
-mostra **todos os tokens**, a **tabela de símbolos**, a **AST** dos comandos da gramática restrita e os **erros semânticos**.
+Lê um arquivo `.java` e mostra **tokens**, **tabela de símbolos**, **erros léxicos**, **árvore sintática (AST)** e
+**erros semânticos**. Python 3.7 ou superior, sem nenhuma dependência (nada de `pip install`), só console.
 
-## Requisitos
-
-- **Python 3.7 ou superior** (testado no 3.14). **Nenhuma dependência externa**, não há `pip install`.
-- Interface gráfica opcional: usa o Tkinter, que já vem com o Python do python.org.
-
-## Como executar
+## Como rodar
 
 Na pasta do projeto:
 
@@ -17,126 +11,68 @@ Na pasta do projeto:
 python main.py testes/Barema.java
 ```
 
-Se o comando `python` não existir no Windows (comum em laboratório), use o launcher `py`:
-
-```bash
-py main.py testes/Barema.java
-```
-
-No Windows, o jeito mais seguro é o `rodar.bat`: ele procura `py` e depois `python` sozinho e já ativa o UTF-8 no console:
+No Windows, se `python` não funcionar, use `py main.py testes/Barema.java` ou, o mais seguro, o `rodar.bat`
+(ele acha o Python sozinho e ativa o UTF-8 no console):
 
 ```bash
 rodar.bat testes\Barema.java
 ```
 
-Opções:
+Para o arquivo do professor, passe o caminho completo: `rodar.bat C:\Users\aluno\Downloads\Prova.java`.
+Se faltar o argumento ou o arquivo não existir, aparece uma mensagem `[ERRO DE ENTRADA]` (nunca um traceback).
 
-| Flag | Efeito |
+| Arquivo de teste | O que mostra |
 |---|---|
-| `--json` | mostra a AST em JSON (além da gramática) |
-| `--ascii` | desenha a árvore com `|--` e `` `-- `` (para terminais que não mostram `├──`) |
-| `--sem-fonte` | não reimprime o código fonte no início |
+| `testes/Barema.java` | `x = a + 5;` (AST), `int resultado = "texto";` e `total = 10;` (os 2 erros semânticos) |
+| `testes/Completo.java` | Java "de verdade" (package, classe, métodos, if, for, while, switch, generics): 0 erros |
+| `testes/ErroLexico.java` | `#`, crase e string sem fechar: erros com linha/coluna, e a análise continua |
 
-Também funcionam: `python -m src.main arquivo.java`, `python src/main.py arquivo.java` e a interface gráfica `python -m src.gui`.
+## Arquivos
 
-Arquivos em UTF-8 (com ou sem BOM) e em ANSI/Windows-1252 são aceitos automaticamente. Caminho inexistente,
-pasta no lugar de arquivo ou falta de argumento geram uma mensagem `[ERRO DE ENTRADA]`, nunca um traceback.
-
-### Versão simples (um arquivo só)
-
-`compilador_simples.py` faz as mesmas 4 etapas em ~460 linhas, num único arquivo, e é mais fácil de explicar:
-
-```bash
-py compilador_simples.py testes/Barema.java
-```
-
-Diferenças: o léxico é uma tabela de expressões regulares, os comandos são separados por `;`, `{` e `}`, e a
-semântica faz apenas as duas checagens do barema (tipo incompatível e variável não declarada), sem escopos de bloco.
-
-## O que a saída mostra
-
-```
-CÓDIGO FONTE          (com número de linha)
-1. TOKENS             #, linha:coluna, tipo e lexema de cada token
-2. TABELA DE SÍMBOLOS ordem de inserção, lexema, categoria (palavra reservada / identificador), tipo, linha
-3. ERROS LÉXICOS      linha e coluna; a análise continua depois do erro
-4. ANÁLISE SINTÁTICA  gramática, AST de cada comando, trechos Java fora da gramática, erros sintáticos
-5. ERROS SEMÂNTICOS
-RESUMO
-```
-
-Exemplo, para `x = a + 5;`:
-
-```
-Atribuicao
-├── ID (x)
-├── OP_ATRIB (=)
-└── Expressao (+)
-    ├── ID (a)
-    └── NUM (5)
-```
-
-```
-[ERRO SEMÂNTICO] Incompatibilidade de tipos na linha 6: Não é possível atribuir String a um tipo int.
-[ERRO SEMÂNTICO] Variável 'total' utilizada na linha 7 não foi declarada previamente.
-```
-
-## Gramática (GLC restrita)
-
-Estende a gramática do barema (`<Atribuicao>`, `<Expressao>`, `<termo>`):
-
-```bnf
-<Comando>     ::= <Declaracao> | <Atribuicao>
-<Declaracao>  ::= <Tipo> <ID> ["=" <Expressao>] ("," <ID> ["=" <Expressao>])* ";"
-<Atribuicao>  ::= <ID> "=" <Expressao> ";"
-<Expressao>   ::= <Termo> (("+" | "-") <Termo>)*
-<Termo>       ::= <Fator> (("*" | "/" | "%") <Fator>)*
-<Fator>       ::= "-" <Fator> | ID | NUM | STRING | CHAR | BOOL | null | "(" <Expressao> ")"
-<Tipo>        ::= int | double | float | long | short | byte | char | boolean | String | Classe<...>[]
-```
-
-Tudo o que é Java válido, mas está fora dessa gramática (classe, métodos, `if`, `for`, chamadas, `new`, `++`...),
-é **pulado** até `;`, `{` ou `}` e listado como "trecho ignorado". O parser não aborta.
-Declarações encontradas nesses trechos (parâmetros, variável do `for`, `Scanner sc = new ...`) continuam sendo
-registradas, para que a semântica não acuse falsos "não declarada".
-
-## Análise semântica
-
-1. Variável usada sem declaração prévia (respeita escopos de bloco; campos da classe valem em todos os métodos).
-2. Incompatibilidade de tipos em declaração/atribuição, seguindo o Java: `int ← String` e `int ← double` são erro;
-   `long ← int`, `double ← int`, `char ← 65` e `String ← "a" + 1` são válidos.
-3. Declaração duplicada no mesmo escopo.
-4. Operação aritmética com operando não numérico (`"a" - 1`; `"a" + 1` é concatenação e é válido).
-
-## Onde está cada etapa (para a defesa)
-
-| Etapa | Arquivo / função | Como funciona |
+| Arquivo | Etapa | Item do barema |
 |---|---|---|
-| Orquestração | `src/main.py`, `analyze_source` | Chama as 4 etapas em sequência: léxico → tabela → parser → semântica |
-| Tokenização | `src/lexer.py`, `Lexer.tokenize` | Cursor caractere a caractere; decide pelo 1º caractere qual reconhecedor chamar (`read_identifier`, `read_number`, `read_string`, `read_char`, `read_operator`) |
-| Operadores | `src/lexer.py`, lista `OPERATORS` | Ordenada do mais longo ao mais curto (maior casamento): `>>>=` vira 1 token, não 4 |
-| Erro léxico | `src/lexer.py`, fim de `tokenize` | Registra `[ERRO LÉXICO] Linha L, coluna C` e avança 1 caractere, sem abortar |
-| Tabela de símbolos | `src/symbol_table.py`, `build_from_tokens` e `set_type` | Lista em ordem de inserção + dicionário por nome; o tipo declarado é preenchido pelo parser |
-| Parsing | `src/parser.py`, `statement`, `declaration`, `assignment`, `expression`, `term`, `factor` | Descendente recursivo: cada regra da GLC vira uma função que consome tokens e devolve um nó |
-| Recuperação | `src/parser.py`, `recover`, `skip_construct` | Pula até `;`/`{`/`}` e registra o trecho ignorado |
-| AST | `src/ast_nodes.py`, `render_tree` | Cada nó tem `label()` e `children()`; `render_tree` desenha com `├──`/`└──` |
-| Semântica | `src/semantic.py`, `SemanticAnalyzer.analyze` | Percorre a AST, declara variáveis por escopo, procura cada uso (`lookup`) e compara tipos (`infer_type`, `check_assignment_type`) |
+| `main.py` | lê o `.java`, chama as etapas em ordem e imprime as 5 seções | todos |
+| `lexico.py` | ETAPA 1: código → lista de tokens + erros léxicos | Lista de Tokens, Assertividade Léxica |
+| `tabela_simbolos.py` | tokens → tabela (ordem, lexema, categoria, tipo, linha) | Tabela de Símbolos |
+| `sintatico.py` | ETAPA 2: gramática do barema → AST impressa em árvore | Sintática + AST |
+| `semantico.py` | ETAPA 3: tipo incompatível e variável não declarada | Semântica |
 
-## Testes
+## Gramática
 
-```bash
-python -m unittest -v tests/test_compiler.py
+```
+<Comando>    ::= <Declaracao> | <Atribuicao>
+<Declaracao> ::= <Tipo> ID ["=" <Expressao>] ("," ID ["=" <Expressao>])* ";"
+<Atribuicao> ::= ID "=" <Expressao> ";"
+<Expressao>  ::= <Termo> (("+"|"-") <Termo>)*
+<Termo>      ::= <Fator> (("*"|"/") <Fator>)*
+<Fator>      ::= ID | NUMERO | STRING | "(" <Expressao> ")"
+<Tipo>       ::= int | double | float | long | short | byte | char | boolean | String
 ```
 
-São 54 testes (léxico, tabela, parser, semântica, CLI, GUI). A pasta `testes/` tem arquivos `.java` de exemplo:
+A lista com `,` existe porque o `Barema.java` tem `int x, a;`. Tudo o que não casa com `<Comando>` (class, if, for,
+chamadas de método...) é **pulado sem erro** até o próximo `;`, `{` ou `}`. É isso que faz o programa aguentar qualquer
+`.java`. As variáveis declaradas nesses trechos (parâmetros, variável do `for`, `Scanner sc = ...`) são anotadas
+para a semântica não acusar "não declarada" à toa.
 
-| Arquivo | Conteúdo |
-|---|---|
-| `Barema.java` | exatamente os exemplos do barema (AST + 2 erros semânticos) |
-| `Basico.java` | todos os tipos primitivos, `+ - * / %` e parênteses |
-| `Completo.java` | package, import, classe, métodos, if/for/while/do/switch, arrays, generics, @Override |
-| `Avancado.java` | records, enums, interfaces, lambdas, text block, try-with-resources, classe anônima |
-| `Lexico.java` | comentários, escapes, todos os formatos de número e operadores |
-| `ErroLexico.java` | `#`, crase e string sem fechar (erros com linha/coluna, análise continua) |
-| `Semantico.java` | 7 erros semânticos diferentes, sem falsos positivos |
-| `Acentos.java`, `Ansi_cp1252.java`, `Vazio.java`, `Simples.java` | codificações, arquivo vazio, trecho sem classe |
+## Mapa da defesa
+
+| Parte | Onde | O que dizer |
+|---|---|---|
+| **Fluxo** | `main.py`, função `main` (linhas 44–47) | "As 4 etapas em sequência: léxico → tabela → sintático → semântico." |
+| **Tokenização** | `lexico.py`, lista `REGRAS` (33) e função `analisar_lexico` (57) | "Cada tipo de token é um regex. Na posição atual, tentamos as regras **em ordem** e a primeira que casar vence; guardamos o token e avançamos. Se nenhuma casar, é erro léxico com linha e coluna, e seguimos para o próximo caractere." |
+| Ordem das regras | `lexico.py`, comentário da linha 28 e `OPERADORES` (24) | "Comentário antes de operador, text block antes de string, operadores do maior para o menor: `>>>=` antes de `>>` antes de `>`." |
+| **Tabela de símbolos** | `tabela_simbolos.py`, `montar_tabela` (62) e `tipo_antes` (11) | "Percorre os tokens em ordem e insere cada palavra na primeira vez em que aparece (ordem de inserção). O tipo é o que vem logo antes do nome: `int x`, `String nome`, `class Pessoa`, `void metodo(`." |
+| **Parsing** | `sintatico.py`, `comando` (26), `declaracao` (37), `atribuicao` (54), `expressao` (65), `termo` (74), `fator` (83) | "Descendente recursivo: uma função por regra, com a regra BNF em comentário em cima. `expressao` chama `termo`, que chama `fator`; por isso `*` fica mais fundo na árvore e é feito antes de `+`." |
+| Recuperação | `sintatico.py`, `pular` (98) e `analisar_sintaxe` (123) | "Se o trecho não casa com a gramática, pulamos até `;`, `{` ou `}` e continuamos. O parser nunca aborta." |
+| **AST** | `sintatico.py`, `imprimir_arvore` (142) | "Caminhamento em profundidade recursivo: o último filho recebe `└──`, os outros `├──`." |
+| **Semântica** | `semantico.py`, `analisar_semantica` (64) | "Percorre as ASTs na ordem do código guardando `nome → tipo`. Uso de nome que não está no dicionário: 'não foi declarada previamente'." |
+| Tipos | `semantico.py`, `tipo_da_expressao` (25) e `compativel` (44) | "O tipo da expressão é inferido de baixo para cima (`5` é int, `"texto"` é String). `int → double` é permitido; `double → int` e `String → int` são erro." |
+
+## Perguntas prováveis
+
+- **"Por que `String` é identificador?"** Em Java `String` é uma classe (`java.lang.String`), não uma palavra reservada.
+- **"E `var`, `record`, `yield`?"** São palavras contextuais: o próprio compilador Java as lê como identificadores no
+  léxico e só decide o papel delas na análise sintática. Aqui elas saem como `IDENTIFICADOR`.
+- **"O que acontece com `if`, `for`, métodos?"** São tokenizados normalmente (todas as 51 palavras reservadas do Java
+  estão no léxico). O parser reconhece só a gramática acima e pula o resto, sem dar erro.
+- **"E `String s = "a" + 1;`?"** É válido (concatenação): `+` com String dá String.
