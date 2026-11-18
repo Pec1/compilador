@@ -23,18 +23,18 @@ def esperar(tokens, i, lexema=None, tipo=None):
     return t, i + 1
 
 # <Comando> ::= <Declaracao> | <Atribuicao>
-def comando(tokens, i):
+def comando(tokens, i, erros):
     while tokens[i].lexema in MODIFICADORES:          # private static int x = 1;
         i += 1
     if tokens[i].lexema in TIPOS and tokens[i + 1].tipo == "IDENTIFICADOR":
-        return declaracao(tokens, i)
+        return declaracao(tokens, i, erros)
     if tokens[i].tipo == "IDENTIFICADOR" and tokens[i + 1].lexema == "=":
-        return atribuicao(tokens, i)
+        return atribuicao(tokens, i, erros)
     raise ErroSintatico("fora da gramática")
 
 # <Declaracao> ::= <Tipo> ID ["=" <Expressao>] ("," ID ["=" <Expressao>])* ";"
 # (a lista com "," é necessária para o "int x, a;" do Barema.java; cada variável vira um nó)
-def declaracao(tokens, i):
+def declaracao(tokens, i, erros):
     tipo, i = tokens[i], i + 1
     nos = []
     while True:
@@ -47,17 +47,32 @@ def declaracao(tokens, i):
         if tokens[i].lexema != ",":
             break
         i += 1
-    _, i = esperar(tokens, i, ";")
+    i = fim_do_comando(tokens, i, erros)
     return nos, i
 
 # <Atribuicao> ::= ID "=" <Expressao> ";"
-def atribuicao(tokens, i):
+def atribuicao(tokens, i, erros):
     nome, i = esperar(tokens, i, tipo="IDENTIFICADOR")
     _, i = esperar(tokens, i, "=")
     expr, i = expressao(tokens, i)
-    _, i = esperar(tokens, i, ";")
+    i = fim_do_comando(tokens, i, erros)
     filhos = [no("ID", nome.lexema, linha=nome.linha), no("OP_ATRIB", "="), expr]
     return [no("Atribuicao", filhos=filhos, linha=nome.linha)], i
+
+# O ";" que fecha <Declaracao>/<Atribuicao>. Se ele falta mas o comando claramente acabou
+# (o próximo token está numa linha nova, ou é '}'), é um ERRO SINTÁTICO: registramos e
+# seguimos como se o ';' estivesse lá, para não perder o comando nem os seguintes.
+# Se falta no meio da linha (ex.: "String s = sc.nextLine();"), o trecho é só Java fora da
+# gramática e é pulado sem erro, como antes.
+def fim_do_comando(tokens, i, erros):
+    t, anterior = tokens[i], tokens[i - 1]
+    if t.lexema == ";":
+        return i + 1
+    if t.tipo == "FIM" or t.lexema == "}" or t.linha > anterior.linha:
+        erros.append(f"[ERRO SINTÁTICO] Linha {anterior.linha}, coluna "
+                     f"{anterior.coluna + len(anterior.lexema)}: esperado ';' após '{anterior.lexema}'.")
+        return i
+    raise ErroSintatico(f"esperado ';', encontrado '{t.lexema}'")
 
 # <Expressao> ::= <Termo> (("+"|"-") <Termo>)*
 # Expressao chama Termo, que chama Fator: por isso * e / ficam mais fundo na árvore
@@ -121,9 +136,9 @@ def declaracoes_no_trecho(tokens, inicio, fim):
     return achadas
 
 def analisar_sintaxe(tokens):
-    """Devolve a lista de itens: ("comando", ast, nivel) ou ("pulado", declaracoes, nivel).
+    """Devolve (itens, erros). Cada item é ("comando", ast, nivel) ou ("pulado", declaracoes, nivel);
     'nivel' é quantas chaves estão abertas (1 = corpo da classe, ou seja, um atributo)."""
-    itens, i, nivel = [], 0, 0
+    itens, erros, i, nivel = [], [], 0, 0
     while tokens[i].tipo != "FIM":
         lexema = tokens[i].lexema
         if lexema in ("{", "}", ";"):
@@ -131,13 +146,15 @@ def analisar_sintaxe(tokens):
             i += 1
             continue
         try:
-            nos, i = comando(tokens, i)
+            erros_antes = len(erros)
+            nos, i = comando(tokens, i, erros)
             itens += [("comando", ast, nivel) for ast in nos]
         except (ErroSintatico, RecursionError):
+            del erros[erros_antes:]                     # trecho descartado: seus erros também
             fim = max(pular(tokens, i), i + 1)          # garante que o laço sempre avança
             itens.append(("pulado", declaracoes_no_trecho(tokens, i, fim), nivel))
             i = fim
-    return itens
+    return itens, erros
 
 def imprimir_arvore(ast, prefixo=""):
     """Caminhamento em profundidade: imprime o nó e, recursivamente, cada filho.

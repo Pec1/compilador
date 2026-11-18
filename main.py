@@ -43,7 +43,7 @@ def main():
 
     tokens, erros_lexicos = analisar_lexico(codigo)    # ETAPA 1: texto -> tokens
     tabela = montar_tabela(tokens)                     #           tokens -> tabela de símbolos
-    itens = analisar_sintaxe(tokens)                   # ETAPA 2: tokens -> ASTs
+    itens, erros_sintaticos = analisar_sintaxe(tokens) # ETAPA 2: tokens -> ASTs
     erros_semanticos = analisar_semantica(itens)       # ETAPA 3: ASTs -> erros de tipo/declaração
 
     titulo(f"1. TOKENS ({len(tokens) - 1})")
@@ -67,6 +67,8 @@ def main():
     pulados = len(itens) - len(comandos)
     print(f"\n{len(comandos)} comando(s) da gramática; {pulados} trecho(s) Java fora da gramática "
           f"(class, if, for, chamadas...) pulado(s) sem erro.")
+    print(f"\nErros sintáticos ({len(erros_sintaticos)}):")
+    print("\n".join(erros_sintaticos) or "Nenhum erro sintático.")
 
     titulo(f"5. ERROS SEMÂNTICOS ({len(erros_semanticos)})")
     print("\n".join(erros_semanticos) or "Nenhum erro semântico.")
